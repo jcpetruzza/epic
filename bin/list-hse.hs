@@ -1,8 +1,3 @@
-{-# LANGUAGE DeriveAnyClass     #-}
-{-# LANGUAGE DeriveFunctor      #-}
-{-# LANGUAGE DeriveTraversable  #-}
-{-# LANGUAGE DeriveGeneric      #-}
-{-# LANGUAGE LambdaCase         #-}
 {-# LANGUAGE OverloadedStrings  #-}
 module Main (main)
 

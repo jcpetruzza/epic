@@ -1,7 +1,3 @@
-{-# LANGUAGE DeriveAnyClass     #-}
-{-# LANGUAGE DeriveGeneric      #-}
-{-# LANGUAGE DeriveFunctor      #-}
-{-# LANGUAGE DeriveTraversable  #-}
 module SrcLoc
   ( Src(..)
   , RowCol(..)
