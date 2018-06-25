@@ -1,0 +1,176 @@
+module Patch
+  ( Patch(..)
+
+  , applyPatch
+  , PatchApplyError(..)
+  )
+
+where
+
+import           SrcLoc                     ( Located(..), RowCol(..), Span(..), Src(..) )
+
+import qualified Control.Exception          as Exc
+import           Control.Monad
+import           Control.Monad.Catch        ( bracket )
+import           Control.Monad.IO.Class     ( liftIO )
+import           Control.Monad.Trans.Except ( ExceptT, catchE, throwE )
+import qualified Data.List                  as List
+import           Data.Maybe                 ( fromMaybe )
+import           Data.Text                  ( Text )
+import qualified Data.Text                  as Text
+import qualified Data.Text.IO               as Text
+import           GHC.Generics               ( Generic )
+
+import           System.IO                  ( Handle, IOMode(ReadMode), hClose, openFile )
+import           System.IO.Error
+import qualified System.IO.Temp             as Temp
+import qualified System.Directory           as Dir
+import qualified System.FilePath            as FilePath
+
+
+-- | Patches that can be applied on a file
+data Patch a
+  = PatchFileDelete FilePath
+  | PatchFileCopy
+      FilePath  -- ^ From
+      FilePath  -- ^ To
+  | PatchReplaceHunk
+      (Located a)
+  deriving
+    ( Eq
+    , Show
+    , Generic
+    )
+
+
+data PatchApplyError
+  = PatchApplyIOError IOError
+  | PatchApplyFileNotFound FilePath
+  | PatchApplyFileExists FilePath
+  | PatchApplyBadSpan (Src Span)
+  deriving
+    ( Eq
+    , Show
+    , Generic
+    )
+
+
+-- | Atomically apply the given patch.
+applyPatch :: Patch [Text] -> ExceptT PatchApplyError IO ()
+applyPatch = \case
+  PatchFileDelete f -> do
+    ioActionOnErr (fileNotFoundOrIOError f) $
+      Dir.removeFile f
+
+  PatchFileCopy src dest -> do
+    destAlreadyExists <- liftIO $ Dir.doesFileExist dest
+    when destAlreadyExists $
+      throwE (PatchApplyFileExists dest)
+
+    ioActionOnErr (fileNotFoundOrIOError src) $ Dir.copyFile src dest
+
+
+  PatchReplaceHunk locHunk -> do
+    let
+      f         = srcFilename $ location locHunk
+      targetDir = FilePath.takeDirectory f
+    Temp.withTempFile targetDir "apply-patch.tmp" $ \f' h' -> do
+       pure ()
+       bracket
+         (ioActionOnErr (fileNotFoundOrIOError f) (openFile f ReadMode))
+         (ioAction . hClose) $ \h -> do
+            patchToDest locHunk h h'
+            ioAction $ hClose h'
+            ioAction $ Dir.renameFile f' f
+
+  where
+    ioActionOnErr handleError action
+      = do
+          ea <- liftIO $ Exc.try $ action
+          case ea of
+            Right a  -> pure a
+            Left exc -> handleError exc
+
+    ioAction
+      = ioActionOnErr (throwE . PatchApplyIOError)
+
+    fileNotFoundOrIOError f ioErr
+      | isDoesNotExistError ioErr = throwE (PatchApplyFileNotFound f)
+      | otherwise                 = throwE (PatchApplyIOError ioErr)
+
+
+    patchToDest locHunk srcHandle destHandle
+      = do
+          let start = spanStart span
+              end   = spanEnd span
+
+          when (not $ start <= end) $
+            throwE badPatch
+
+          copyLines (row start)
+
+          lineHunkStart <- fromMaybe Text.empty <$> nextLineIfExists
+          copyLineColsUntil (col start) lineHunkStart
+
+          writeHunk
+
+          lineHunkEnd <- skipLines (row end - row start) lineHunkStart
+          copyLineColsFrom (col end) lineHunkEnd
+
+          copyLinesUntilEoF
+      where
+        span
+          = src $ location locHunk
+
+        hunkLines
+          = element locHunk
+
+        copyLines n
+          = replicateM_ n (nextLine >>= ioAction . Text.hPutStrLn destHandle)
+
+        copyLinesUntilEoF
+          = nextLineIfExists >>= \case
+              Nothing   -> pure ()
+              Just line -> ioAction (Text.hPutStrLn destHandle line)
+                             >> copyLinesUntilEoF
+
+        skipLines n currLine
+          = foldM (\_ _ -> nextLine) currLine [1..n]
+
+        nextLine
+          = ioActionOnErr (onEOF $ throwE badPatch) $
+              Text.hGetLine srcHandle
+
+        nextLineIfExists
+          = ioActionOnErr (onEOF $ pure Nothing) $
+              Just <$> Text.hGetLine srcHandle
+
+        copyLineColsUntil n line
+          = do
+              let initialCols = Text.take n line
+              when (Text.length initialCols < n) $
+                throwE badPatch
+              ioAction $ Text.hPutStr destHandle initialCols
+
+        copyLineColsFrom n line
+          = do
+              let finalCols = Text.drop n line
+              when (Text.null finalCols && Text.length line /= n) $
+                throwE badPatch
+              ioAction $ Text.hPutStrLn destHandle finalCols
+
+        writeHunk
+          = ioAction $
+              sequence $
+                List.intersperse newline $
+                  map (Text.hPutStr destHandle) hunkLines
+
+        newline
+          = Text.hPutStrLn destHandle Text.empty
+
+        onEOF handleEOF ioErr
+          | isEOFError ioErr = handleEOF
+          | otherwise        = throwE (PatchApplyIOError ioErr)
+
+        badPatch
+          = PatchApplyBadSpan (location locHunk)

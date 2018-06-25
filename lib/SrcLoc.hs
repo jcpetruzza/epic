@@ -21,6 +21,7 @@ data Src a = Src
     }
   deriving
     ( Eq, Ord
+    , Show
     , Functor, Foldable, Traversable
     , Generic
     , FromJSON, ToJSON
@@ -33,6 +34,7 @@ data RowCol a = RowCol
   }
   deriving
     ( Eq, Ord
+    , Show
     , Functor, Foldable, Traversable
     , Generic
     , FromJSON, ToJSON
@@ -62,6 +64,7 @@ data Span = Span
     }
   deriving
     ( Eq, Ord
+    , Show
     , Generic
     , FromJSON, ToJSON
     )
@@ -73,6 +76,7 @@ data Located a
       }
   deriving
     ( Eq, Ord
+    , Show
     , Functor, Foldable, Traversable
     , Generic
     , FromJSON, ToJSON

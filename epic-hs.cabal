@@ -22,12 +22,19 @@ source-repository head
 library
   exposed-modules:
       Envelope
+      Patch
       SrcLoc
   hs-source-dirs:
       lib
   build-depends:
       base
     , aeson
+    , directory
+    , exceptions
+    , filepath
+    , text
+    , transformers
+    , temporary
 
   default-language: Haskell2010
   default-extensions:
@@ -61,10 +68,20 @@ executable list-hse
 test-suite epic-hs-test-lib
   type: exitcode-stdio-1.0
   main-is: Spec.hs
+  other-modules:
+      Spec.Patch
   hs-source-dirs:
       test/lib
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base
+    , directory
     , epic-hs
+    , tasty
+    , tasty-hunit
+    , temporary
+    , text
+    , transformers
   default-language: Haskell2010
+  default-extensions:
+    OverloadedStrings

@@ -1,2 +1,10 @@
+import qualified Spec.Patch as Patch
+
+import Test.Tasty
+
+
 main :: IO ()
-main = putStrLn "Test suite not yet implemented"
+main = defaultMain $
+  testGroup "All tests" [
+    Patch.tests
+  ]
