@@ -1,8 +1,14 @@
 module Patch
-  ( Patch(..)
-
+  ( -- * The Patch type
+    Patch(..)
   , applyPatch
+
+
+  -- * The Patcher monad
+  , Patcher
+  , runPatcher
   , PatchApplyError(..)
+
   )
 
 where
@@ -13,7 +19,7 @@ import qualified Control.Exception          as Exc
 import           Control.Monad
 import           Control.Monad.Catch        ( bracket )
 import           Control.Monad.IO.Class     ( liftIO )
-import           Control.Monad.Trans.Except ( ExceptT, catchE, throwE )
+import           Control.Monad.Trans.Except ( ExceptT, throwE, runExceptT )
 import qualified Data.List                  as List
 import           Data.Maybe                 ( fromMaybe )
 import           Data.Text                  ( Text )
@@ -54,9 +60,37 @@ data PatchApplyError
     , Generic
     )
 
+-- {{{ The Patcher monad ------------------------------------------------------
+
+type Patcher
+  = ExceptT PatchApplyError IO
+
+runPatcher :: Patcher a -> IO (Either PatchApplyError a)
+runPatcher
+  = runExceptT
+
+ioActionOnErr :: (IOError -> Patcher a) -> IO a -> Patcher a
+ioActionOnErr handleError action
+  = do
+      ea <- liftIO $ Exc.try $ action
+      case ea of
+        Right a  -> pure a
+        Left exc -> handleError exc
+
+ioAction :: IO a -> Patcher a
+ioAction
+  = ioActionOnErr (throwE . PatchApplyIOError)
+
+patcherError :: PatchApplyError -> Patcher a
+patcherError = throwE
+
+
+-- }}} The Patcher monad ------------------------------------------------------
+
+
 
 -- | Atomically apply the given patch.
-applyPatch :: Patch [Text] -> ExceptT PatchApplyError IO ()
+applyPatch :: Patch [Text] -> Patcher ()
 applyPatch = \case
   PatchFileDelete f -> do
     ioActionOnErr (fileNotFoundOrIOError f) $
@@ -65,7 +99,7 @@ applyPatch = \case
   PatchFileCopy src dest -> do
     destAlreadyExists <- liftIO $ Dir.doesFileExist dest
     when destAlreadyExists $
-      throwE (PatchApplyFileExists dest)
+      patcherError (PatchApplyFileExists dest)
 
     ioActionOnErr (fileNotFoundOrIOError src) $ Dir.copyFile src dest
 
@@ -84,19 +118,9 @@ applyPatch = \case
             ioAction $ Dir.renameFile f' f
 
   where
-    ioActionOnErr handleError action
-      = do
-          ea <- liftIO $ Exc.try $ action
-          case ea of
-            Right a  -> pure a
-            Left exc -> handleError exc
-
-    ioAction
-      = ioActionOnErr (throwE . PatchApplyIOError)
-
     fileNotFoundOrIOError f ioErr
-      | isDoesNotExistError ioErr = throwE (PatchApplyFileNotFound f)
-      | otherwise                 = throwE (PatchApplyIOError ioErr)
+      | isDoesNotExistError ioErr = patcherError (PatchApplyFileNotFound f)
+      | otherwise                 = patcherError (PatchApplyIOError ioErr)
 
 
     patchToDest locHunk srcHandle destHandle
@@ -105,7 +129,7 @@ applyPatch = \case
               end   = spanEnd span
 
           when (not $ start <= end) $
-            throwE badPatch
+            patcherError badPatch
 
           copyLines (row start)
 
@@ -138,7 +162,7 @@ applyPatch = \case
           = foldM (\_ _ -> nextLine) currLine [1..n]
 
         nextLine
-          = ioActionOnErr (onEOF $ throwE badPatch) $
+          = ioActionOnErr (onEOF $ patcherError badPatch) $
               Text.hGetLine srcHandle
 
         nextLineIfExists
@@ -149,14 +173,14 @@ applyPatch = \case
           = do
               let initialCols = Text.take n line
               when (Text.length initialCols < n) $
-                throwE badPatch
+                patcherError badPatch
               ioAction $ Text.hPutStr destHandle initialCols
 
         copyLineColsFrom n line
           = do
               let finalCols = Text.drop n line
               when (Text.null finalCols && Text.length line /= n) $
-                throwE badPatch
+                patcherError badPatch
               ioAction $ Text.hPutStrLn destHandle finalCols
 
         writeHunk
@@ -170,7 +194,7 @@ applyPatch = \case
 
         onEOF handleEOF ioErr
           | isEOFError ioErr = handleEOF
-          | otherwise        = throwE (PatchApplyIOError ioErr)
+          | otherwise        = patcherError (PatchApplyIOError ioErr)
 
         badPatch
           = PatchApplyBadSpan (location locHunk)

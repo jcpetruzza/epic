@@ -10,8 +10,6 @@ import Patch
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import Control.Monad.Trans.Except
-
 import           Data.Text        (Text)
 import qualified Data.Text        as Text
 import qualified Data.Text.IO     as Text
@@ -36,7 +34,7 @@ testDelete = testGroup "File Delete"
       withTempFile ["module Foo where"] $ \f -> do
         Dir.doesFileExist f @? "File existed"
 
-        res <- runExceptT $
+        res <- runPatcher $
           applyPatch $ PatchFileDelete f
 
         res @?= Right ()
@@ -47,7 +45,7 @@ testDelete = testGroup "File Delete"
       withFreshFilename $ \f -> do
         (not <$> Dir.doesFileExist f) @? "File does not exist"
 
-        res <- runExceptT $
+        res <- runPatcher $
           applyPatch $ PatchFileDelete f
 
         res @?= Left (PatchApplyFileNotFound f)
@@ -60,7 +58,7 @@ testCopy = testGroup "File Copy"
       let content = ["module Foo where", "foo = 1"]
       withTempFile content $ \src ->
         withFreshFilename $ \tgt -> do
-          res <- runExceptT $
+          res <- runPatcher $
             applyPatch $ PatchFileCopy src tgt
 
           res @?= Right ()
@@ -74,7 +72,7 @@ testCopy = testGroup "File Copy"
   , testCase "Will not overwrite target" $
       withTempFile ["module Foo where"] $ \src ->
         withTempFile ["module Bar where"] $ \tgt -> do
-          res <- runExceptT $
+          res <- runPatcher $
             applyPatch $ PatchFileCopy src tgt
 
           res @?= Left (PatchApplyFileExists tgt)
@@ -88,14 +86,14 @@ testCopy = testGroup "File Copy"
   , testCase "Detects source not found" $
       withFreshFilename $ \src ->
         withFreshFilename $ \tgt -> do
-          res <- runExceptT $
+          res <- runPatcher $
             applyPatch $ PatchFileCopy src tgt
 
           res @?= Left (PatchApplyFileNotFound src)
 
   , testCase "Copy onto itself" $
       withTempFile ["module Foo where"] $ \src -> do
-        res <- runExceptT $
+        res <- runPatcher $
           applyPatch $ PatchFileCopy src src
 
         res @?= Left (PatchApplyFileExists src)
@@ -106,7 +104,7 @@ testReplaceHunk :: TestTree
 testReplaceHunk = testGroup "Replace hunks"
   [ testCase "Patch in the middle, full line" $ do
       withTempFile ["AAA", "BBB", "CCC", "DDD"] $ \f -> do
-        res <- runExceptT $
+        res <- runPatcher $
           applyPatch $
            PatchReplaceHunk $
             Located (srcSpan f (1,0) (3,0))
@@ -119,7 +117,7 @@ testReplaceHunk = testGroup "Replace hunks"
 
   , testCase "Patch in the middle, middle of line" $ do
       withTempFile ["AAA", "BBB", "CCC", "DDD"] $ \f -> do
-        res <- runExceptT $
+        res <- runPatcher $
           applyPatch $
            PatchReplaceHunk $
             Located (srcSpan f (1,1) (3,1))
@@ -132,7 +130,7 @@ testReplaceHunk = testGroup "Replace hunks"
 
   , testCase "Patch at the beginning" $
         withTempFile ["AAA", "BBB", "CCC", "DDD"] $ \f -> do
-            res <- runExceptT $
+            res <- runPatcher $
               applyPatch $
                PatchReplaceHunk $
                 Located (srcSpan f (0,0) (0,0))
@@ -145,7 +143,7 @@ testReplaceHunk = testGroup "Replace hunks"
 
   , testCase "Patch at the very end" $
         withTempFile ["AAA", "BBB", "CCC", "DDDD"] $ \f -> do
-            res <- runExceptT $
+            res <- runPatcher $
               applyPatch $
                PatchReplaceHunk $
                 Located (srcSpan f (4,0) (4,0))
@@ -158,7 +156,7 @@ testReplaceHunk = testGroup "Replace hunks"
 
   , testCase "Patch at end of last line" $
         withTempFile ["AAA", "BBB", "CCC", "DDD"] $ \f -> do
-            res <- runExceptT $
+            res <- runPatcher $
               applyPatch $
                PatchReplaceHunk $
                 Located (srcSpan f (3,3) (3,3))
@@ -171,7 +169,7 @@ testReplaceHunk = testGroup "Replace hunks"
 
   , testCase "Patch middle of a line" $
         withTempFile ["AAA", "BBBBB", "CCC", "DDD"] $ \f -> do
-            res <- runExceptT $
+            res <- runPatcher $
               applyPatch $
                PatchReplaceHunk $
                 Located (srcSpan f (1,2) (1,3))
@@ -185,7 +183,7 @@ testReplaceHunk = testGroup "Replace hunks"
   , testCase "Invalid span (row)" $
         withTempFile ["AAA", "BBBBB", "CCC", "DDD"] $ \f -> do
             let badSpan = srcSpan f (1,2) (0,1)
-            res <- runExceptT $
+            res <- runPatcher $
               applyPatch $
                PatchReplaceHunk $
                  Located badSpan
@@ -199,7 +197,7 @@ testReplaceHunk = testGroup "Replace hunks"
   , testCase "Invalid span (col)" $
         withTempFile ["AAA", "BBBBB", "CCC", "DDD"] $ \f -> do
             let badSpan = srcSpan f (1,2) (1,1)
-            res <- runExceptT $
+            res <- runPatcher $
               applyPatch $
                PatchReplaceHunk $
                  Located badSpan
@@ -213,7 +211,7 @@ testReplaceHunk = testGroup "Replace hunks"
   , testCase "Invalid span (no initial row)" $
         withTempFile ["AAA", "BBBBB", "CCC", "DDD"] $ \f -> do
             let badSpan = srcSpan f (5,0) (5,0)
-            res <- runExceptT $
+            res <- runPatcher $
               applyPatch $
                PatchReplaceHunk $
                  Located badSpan
@@ -227,7 +225,7 @@ testReplaceHunk = testGroup "Replace hunks"
   , testCase "Invalid span (no final row)" $
         withTempFile ["AAA", "BBBBB", "CCC", "DDD"] $ \f -> do
             let badSpan = srcSpan f (0,0) (5,0)
-            res <- runExceptT $
+            res <- runPatcher $
               applyPatch $
                PatchReplaceHunk $
                  Located badSpan
@@ -241,7 +239,7 @@ testReplaceHunk = testGroup "Replace hunks"
   , testCase "Invalid span (no initial col)" $
         withTempFile ["AAA", "BBBBB", "CCC", "DDD"] $ \f -> do
             let badSpan = srcSpan f (0,4) (1,0)
-            res <- runExceptT $
+            res <- runPatcher $
               applyPatch $
                PatchReplaceHunk $
                  Located badSpan
@@ -255,7 +253,7 @@ testReplaceHunk = testGroup "Replace hunks"
   , testCase "Invalid span (no final col)" $
         withTempFile ["AAA", "BBBBB", "CCC", "DDD"] $ \f -> do
             let badSpan = srcSpan f (0,0) (2,5)
-            res <- runExceptT $
+            res <- runPatcher $
               applyPatch $
                PatchReplaceHunk $
                  Located badSpan
