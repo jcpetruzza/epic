@@ -3,15 +3,19 @@ module SrcLoc
   , RowCol(..)
   , Loc, RelLoc
   , Span(..)
+  , overlap, overlapsWith, coveredBy
   , Located(..)
   )
 
 where
 
-import GHC.Generics (Generic)
+import Algebra.Lattice (JoinSemiLattice(..), Lattice, MeetSemiLattice(..))
+import Control.Monad (guard)
 import Data.Aeson (ToJSON, FromJSON)
+import Data.Maybe (isJust)
 import Data.Monoid hiding ((<>))
 import Data.Semigroup
+import GHC.Generics (Generic)
 
 
 -- | An annotation about a source file.
@@ -68,6 +72,41 @@ data Span = Span
     , Generic
     , FromJSON, ToJSON
     )
+
+instance JoinSemiLattice Span where
+  -- | Minimum span covering both.
+  l \/ r = Span
+    { spanStart = spanStart l `min` spanStart r
+    , spanEnd   = spanEnd   l `max` spanEnd   r
+    }
+
+instance MeetSemiLattice Span where
+  -- | Itersection if overlapping, or internal area
+  --   when disjoint
+  l /\ r
+    = let
+        maxStart = spanStart l `max` spanStart r
+        minEnd   = spanEnd   l `min` spanEnd   r
+      in
+        Span
+          { spanStart = maxStart `min` minEnd
+          , spanEnd   = maxStart `max` minEnd
+          }
+
+overlap :: Span -> Span -> Maybe Span
+overlap l r
+  = do
+      let candidate = l /\ r
+      guard (l /\ candidate == candidate)
+      pure candidate
+
+overlapsWith :: Span -> Span -> Bool
+l `overlapsWith` r
+  = isJust (l `overlap` r)
+
+coveredBy :: Span -> Span -> Bool
+l `coveredBy` r
+  = l /\ r == l
 
 data Located a
   = Located
