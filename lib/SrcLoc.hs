@@ -2,6 +2,7 @@ module SrcLoc
   ( Src(..)
   , RowCol(..)
   , Loc, RelLoc
+  , rightOf
   , Span(..)
   , overlap, overlapsWith, coveredBy
   , Located(..)
@@ -57,6 +58,10 @@ instance (Semigroup a, Monoid a) => Monoid (RowCol a) where
 
 -- | A location as row/column index
 type Loc = RowCol Int
+
+rightOf :: Loc -> Loc
+rightOf loc
+  = loc{col = col loc + 1}
 
 -- | A location, relative to some 'Loc'
 type RelLoc = RowCol (Sum Int)
