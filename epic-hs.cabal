@@ -21,7 +21,9 @@ source-repository head
 
 library
   exposed-modules:
+      Assignments
       Envelope
+      Hunk
       LinesOfText
       Match
       Patch
