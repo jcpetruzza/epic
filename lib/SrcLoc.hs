@@ -21,7 +21,7 @@ import GHC.Generics (Generic)
 
 -- | An annotation about a source file.
 data Src a = Src
-    { srcFilename :: String
+    { srcFilename :: FilePath
     , src :: a
     }
   deriving
