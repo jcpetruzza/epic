@@ -1,6 +1,7 @@
 import qualified Spec.LinesOfText as LinesOfText
 import qualified Spec.Match       as Match
 import qualified Spec.Patch       as Patch
+import qualified Spec.Surface     as Surface
 
 import Test.Tasty
 
@@ -11,4 +12,5 @@ main = defaultMain $
     Patch.tests
   , Match.tests
   , LinesOfText.tests
+  , Surface.tests
   ]
