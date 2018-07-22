@@ -28,6 +28,7 @@ import           Control.Monad.State.Strict ( State, evalState, get, put )
 import qualified Data.HashMap.Strict        as HM
 import qualified Data.List                  as List
 import           Data.Maybe                 ( catMaybes )
+import           Data.Semigroup             ( Semigroup(..) )
 import           Data.String
 import           Data.Text                  ( Text )
 import qualified Data.Text                  as Text
@@ -36,26 +37,57 @@ import qualified Data.Text.Lazy.Builder     as Builder
 import qualified Data.Vector                as V
 
 newtype LinesOfText
-  = LinesOfText {asVectorOfText :: V.Vector Text}
+  = LinesOfText {asVectorOfText :: V.Vector Text} -- INVARIANT: Non-empty
   deriving (Eq, Show)
 
 instance IsString LinesOfText where
   fromString =  fromText . Text.pack
 
 fromText :: Text -> LinesOfText
-fromText = LinesOfText . V.fromList . Text.lines
+fromText = LinesOfText . V.fromList . lines'
+  where
+    lines' = go
+      where
+        go t
+          = case Text.findIndex ('\n' ==) t of
+              Nothing -> [t]
+              Just i ->
+                let (l, t') = Text.splitAt (i+1) t
+                in l : if Text.null t' then [] else go t'
 
 fromLazyText :: LText.Text -> LinesOfText
-fromLazyText = LinesOfText . V.fromList . map LText.toStrict . LText.lines
-
+fromLazyText = LinesOfText . V.fromList . map LText.toStrict . lines'
+  where
+    lines' = go
+      where
+        go t
+          = let (l, t') = LText.break ('\n' ==) t
+            in case LText.uncons t' of
+                 Nothing -> [l]
+                 Just (_, t'') ->
+                   l `LText.snoc` '\n' : if LText.null t'' then [] else go t''
 
 toText :: LinesOfText -> Text
 toText
-  = Text.unlines . V.toList . asVectorOfText
+  = mconcat . V.toList . asVectorOfText
 
 toLazyText :: LinesOfText -> LText.Text
 toLazyText
-  = LText.unlines . map LText.fromStrict . V.toList . asVectorOfText
+  = mconcat . map LText.fromStrict . V.toList . asVectorOfText
+
+instance Semigroup LinesOfText where
+  (LinesOfText l) <> (LinesOfText r)
+    = if (snd <$> Text.unsnoc (V.last l)) == Just '\n'
+        then LinesOfText (l <> r)
+        else LinesOfText $ mconcat
+               [ V.init l
+               , V.singleton (V.last l <> V.head r)
+               , V.tail r
+               ]
+
+instance Monoid LinesOfText where
+  mempty  = LinesOfText (V.singleton "")
+  mappend = (<>)
 
 instance Matchable LinesOfText where
   matched m lot
@@ -111,7 +143,6 @@ fromFragments
 
     linesOfTextToBuilder =
       mconcat
-        . List.intersperse (Builder.singleton '\n')
         . map Builder.fromText
         . V.toList
         . asVectorOfText
@@ -143,7 +174,7 @@ fragmentUpTo upTo
           sliceLen = lastRow - row curLoc + 1
 
       if sliceLen == 0
-        then pure (LinesOfText V.empty)
+        then pure mempty
         else do
           lastLine <- maybe outOfRange pure $ ls V.!? (sliceLen - 1)
 

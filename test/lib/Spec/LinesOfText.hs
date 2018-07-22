@@ -9,15 +9,19 @@ import LinesOfText
 import Match (UpToLoc(..), MatchFragment(..))
 import SrcLoc (RowCol(..), Span(..))
 
+import Arbitrary (PrintableText(..))
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck
 
+import qualified Data.Text.Lazy as LText
 import qualified Data.Vector as V
 
 tests :: TestTree
 tests = testGroup "LinesOfText"
   [ testFragmentUpTo
   , testTextFragments
+  , testToFromText
   ]
 
 testFragmentUpTo :: TestTree
@@ -46,16 +50,16 @@ testFragmentUpTo = testGroup "fragmentUpTo"
         , fragmentUpTo (LEqLoc (RowCol 3 0))
         ]
         "hello, world\nfifafufa\nboooom\npim"
-        ["", "h", "ello, world", "fifafufa\nboooom\np"]
+        ["", "h", "ello, world\n", "fifafufa\nboooom\np"]
 
   , testCase "Right-end" $
       runTest
         [ fragmentUpTo (LtLoc  (RowCol 0 11))
         , fragmentUpTo (LEqLoc (RowCol 0 11))
-        , fragmentUpTo (LEqLoc (RowCol 1 7))
+        , fragmentUpTo (LEqLoc (RowCol 1 8))
         ]
         "hello, world\nfifafufa\nboooom\npim"
-        ["hello, worl", "d", "fifafufa"]
+        ["hello, worl", "d", "\nfifafufa\n"]
   ]
   where
     runTest frags input expected
@@ -66,7 +70,7 @@ testFragmentUpTo = testGroup "fragmentUpTo"
 testTextFragments :: TestTree
 testTextFragments = testGroup "textFragments/fromFragments"
   [ testCase "Simple case" $ do
-      let initial = "hello, world\nfifafufa\nboooom\npim"
+      let initial = "hello, world\nfifafufa\nboooom\npim\n"
 
           actual
             = textFragments
@@ -80,9 +84,20 @@ testTextFragments = testGroup "textFragments/fromFragments"
             = [ UnmatchedFragment "hello, world\nf"
               , MatchedFragment "X" "ifafufa\nboo"
               , MatchedFragment "Y" "oom\np"
-              , UnmatchedFragment "im"
+              , UnmatchedFragment "im\n"
               ]
 
       actual @?= Right expected
       (fromFragments <$> actual) @?= Right initial
+  ]
+
+
+testToFromText :: TestTree
+testToFromText = testGroup "Conversions to text"
+  [ testProperty "fromText . toText = id" $ \(PrintableText t) ->
+      (LinesOfText.toText $ LinesOfText.fromText t) === t
+
+  , testProperty "fromLazyText . toLazyText = id" $ \(PrintableText st) ->
+      let t = LText.fromStrict st
+      in (LinesOfText.toLazyText $ LinesOfText.fromLazyText t) === t
   ]
