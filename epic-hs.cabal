@@ -78,6 +78,7 @@ test-suite epic-hs-test-lib
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Arbitrary
       Spec.LinesOfText
       Spec.Match
       Spec.Patch
@@ -88,8 +89,10 @@ test-suite epic-hs-test-lib
       base
     , directory
     , epic-hs
+    , filepath
     , tasty
     , tasty-hunit
+    , tasty-quickcheck
     , temporary
     , text
     , unordered-containers
