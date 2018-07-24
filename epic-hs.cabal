@@ -49,11 +49,13 @@ library
 
   default-language: Haskell2010
   default-extensions:
+    BangPatterns
     DeriveAnyClass
     DeriveGeneric
     DeriveFunctor
     DeriveTraversable
     LambdaCase
+    OverloadedStrings
 
 executable list-hse
   main-is: list-hse.hs
