@@ -1,1 +1,1 @@
-# epic-hs
+# epic
