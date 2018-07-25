@@ -88,3 +88,27 @@ test-suite epic-core-test-lib
     OverloadedStrings
     ScopedTypeVariables
     TypeApplications
+
+
+executable epic-cat
+  main-is: epic-cat.hs
+
+  hs-source-dirs:
+      epic-cat
+
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+
+  build-depends:
+      base
+    , epic-core
+    , pipes
+    , text
+
+  default-language: Haskell2010
+  default-extensions:
+    DeriveAnyClass
+    DeriveGeneric
+    DeriveFunctor
+    DeriveTraversable
+    LambdaCase
+    OverloadedStrings
