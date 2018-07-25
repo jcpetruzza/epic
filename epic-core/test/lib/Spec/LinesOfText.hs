@@ -16,12 +16,14 @@ import Test.Tasty.QuickCheck
 
 import qualified Data.Text.Lazy as LText
 import qualified Data.Vector as V
+import Data.Semigroup
 
 tests :: TestTree
 tests = testGroup "LinesOfText"
   [ testFragmentUpTo
   , testTextFragments
   , testToFromText
+  , testMonoid
   ]
 
 testFragmentUpTo :: TestTree
@@ -100,4 +102,19 @@ testToFromText = testGroup "Conversions to text"
   , testProperty "fromLazyText . toLazyText = id" $ \(PrintableText st) ->
       let t = LText.fromStrict st
       in (LinesOfText.toLazyText $ LinesOfText.fromLazyText t) === t
+  ]
+
+testMonoid :: TestTree
+testMonoid = testGroup "Monoid instance"
+  [ testProperty "mempty <> l = l" $ \l ->
+      mempty @LinesOfText <> l == l
+
+  , testProperty "l <> mempty = l" $ \l ->
+      l <> mempty @LinesOfText == l
+
+  , testProperty "(a <> b) <> c = a <> (b <> c)" $ \a b c ->
+      (a <> b) <> c == a <> (b <> c :: LinesOfText)
+
+  , testProperty "toText l <> toText r = toText (l <> r)" $ \l r ->
+      toText l <> toText r == toText (l <> r)
   ]
