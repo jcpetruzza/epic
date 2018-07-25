@@ -24,6 +24,7 @@ tests = testGroup "LinesOfText"
   , testTextFragments
   , testToFromText
   , testMonoid
+  , testSpans
   ]
 
 testFragmentUpTo :: TestTree
@@ -117,4 +118,13 @@ testMonoid = testGroup "Monoid instance"
 
   , testProperty "toText l <> toText r = toText (l <> r)" $ \l r ->
       toText l <> toText r == toText (l <> r)
+  ]
+
+testSpans :: TestTree
+testSpans = testGroup "Span calculations"
+  [ testProperty "Span under concatenation" $ \l r s0 ->
+      let sl  = LinesOfText.totalSpanFrom s0 l
+          sr  = LinesOfText.totalSpanFrom (spanEnd sl) r
+          slr = Span {spanStart = spanStart sl, spanEnd = spanEnd sr}
+      in LinesOfText.totalSpanFrom s0 (l <> r) == slr
   ]

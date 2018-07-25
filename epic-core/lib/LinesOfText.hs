@@ -6,6 +6,11 @@ module LinesOfText
   , fromLazyText
   , toLazyText
 
+    -- * Properties
+  , lastLineIncludesNewline
+  , totalSpan
+  , totalSpanFrom
+
     -- * Fragments
   , textFragments
   , fromFragments
@@ -77,7 +82,7 @@ toLazyText
 
 instance Semigroup LinesOfText where
   (LinesOfText l) <> (LinesOfText r)
-    = if (snd <$> Text.unsnoc (V.last l)) == Just '\n'
+    = if lastLineIncludesNewline (LinesOfText l)
         then LinesOfText (l <> r)
         else LinesOfText $ mconcat
                [ V.init l
@@ -88,6 +93,38 @@ instance Semigroup LinesOfText where
 instance Monoid LinesOfText where
   mempty  = LinesOfText (V.singleton "")
   mappend = (<>)
+
+-- | The last line will not always include a final newline.
+lastLineIncludesNewline :: LinesOfText -> Bool
+lastLineIncludesNewline (LinesOfText ls)
+  = (snd <$> Text.unsnoc (V.last ls)) == Just '\n'
+
+totalSpan :: LinesOfText -> Span
+totalSpan
+  = totalSpanFrom (RowCol 0 0)
+
+-- | Return the 'Span' assuming the top-left character is at the given 'Loc'.
+totalSpanFrom :: Loc -> LinesOfText -> Span
+totalSpanFrom start lot@(LinesOfText ls)
+  = Span
+      { spanStart
+          = start
+      , spanEnd
+          = if lastLineIncludesNewline lot
+              then RowCol
+                     { row = row start + V.length ls
+                     , col = 0
+                     }
+              else RowCol
+                     { row = row start + V.length ls - 1
+                     , col = if isSingleLine
+                               then Text.length (V.last ls) + col start
+                               else Text.length (V.last ls)
+                     }
+      }
+  where
+    isSingleLine = V.length ls == 1
+
 
 instance Matchable LinesOfText where
   matched m lot
