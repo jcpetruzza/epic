@@ -40,7 +40,6 @@ library
     , lattices
     , mtl
     , text
-    , transformers
     , temporary
     , unordered-containers
     , vector

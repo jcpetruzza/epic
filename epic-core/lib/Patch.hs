@@ -18,8 +18,8 @@ import           SrcLoc                     ( Located(..), RowCol(..), Span(..),
 import qualified Control.Exception          as Exc
 import           Control.Monad
 import           Control.Monad.Catch        ( bracket )
+import           Control.Monad.Except       ( ExceptT, throwError, runExceptT )
 import           Control.Monad.IO.Class     ( liftIO )
-import           Control.Monad.Trans.Except ( ExceptT, throwE, runExceptT )
 import qualified Data.List                  as List
 import           Data.Maybe                 ( fromMaybe )
 import           Data.Text                  ( Text )
@@ -79,10 +79,10 @@ ioActionOnErr handleError action
 
 ioAction :: IO a -> Patcher a
 ioAction
-  = ioActionOnErr (throwE . PatchApplyIOError)
+  = ioActionOnErr (throwError . PatchApplyIOError)
 
 patcherError :: PatchApplyError -> Patcher a
-patcherError = throwE
+patcherError = throwError
 
 
 -- }}} The Patcher monad ------------------------------------------------------
