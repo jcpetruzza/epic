@@ -46,7 +46,7 @@ fileHunks fileNames
 --   and emit thems.
 --
 --   NB. Will raise a 'ParsingError' on invalid data.
-hInputHunks :: Surface a => Handle -> Pipes.Producer (Hunk a) IO ()
+hInputHunks :: (Surface a, MonadIO m) => Handle -> Pipes.Producer (Hunk a) m ()
 hInputHunks
   = produceHunks . Pipes.Text.fromHandle
 
@@ -72,13 +72,13 @@ produceHunks prodText
 
 
 -- | Emit the surface representation of each 'Hunk'.
-emitHunks :: Surface a => Pipes.Pipe (Hunk a) Text IO ()
+emitHunks :: (Surface a, MonadIO m) => Pipes.Pipe (Hunk a) Text m ()
 emitHunks
   = for Pipes.cat $
       runSurfaceBuilderWith Pipes.yield . buildSurface
 
 
 -- | A 'Consumer' that outputs a 'Hunk' to the given 'Handle'.
-hOutputHunks :: Surface a => Handle -> Pipes.Consumer (Hunk a) IO ()
+hOutputHunks :: (Surface a, MonadIO m) => Handle -> Pipes.Consumer (Hunk a) m ()
 hOutputHunks h
   = emitHunks >-> Pipes.Text.toHandle h
