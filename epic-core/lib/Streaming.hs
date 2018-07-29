@@ -1,6 +1,8 @@
 module Streaming
   ( -- * Producers
     fileHunks
+  , hInputHunks
+  , produceHunks
 
     -- * Consumers
   , hOutputHunks
@@ -13,10 +15,16 @@ import           LinesOfText
 import           Surface ( Surface(..) )
 import           SrcLoc ( Span(..), RowCol(..) )
 
+import qualified Control.Exception as Ex
+import qualified Data.Attoparsec.Text as P
 import           Data.Text ( Text )
+import qualified Data.Text as Text
 import qualified Data.Text.Lazy.IO as LText
 import qualified Data.Text.Lazy.Builder as LTB
+import           Data.Typeable ( Typeable )
 import           Pipes
+import qualified Pipes.Attoparsec
+import qualified Pipes.Text.IO as Pipes.Text
 import           System.IO ( Handle )
 
 
@@ -31,6 +39,36 @@ fileHunks fileNames
       ls <- liftIO $ LinesOfText.fromLazyText <$> LText.readFile fileName
       let hunkSpan = LinesOfText.totalSpan ls
       yield $ mkHunk fileName hunkSpan mempty ls
+
+
+-- | A 'Producer' that parses the 'Surface' representation of 'Hunk's
+--   and emit thems.
+--
+--   NB. Will raise a 'ParsingError' on invalid data.
+hInputHunks :: Surface a => Handle -> Pipes.Producer (Hunk a) IO ()
+hInputHunks
+  = produceHunks . Pipes.Text.fromHandle
+
+
+-- | Turn a 'Pipes.Producer' of 'Text' into a 'Producer' of 'Hunk's.
+--   It will skip all empty lines between consecutive hunks.
+--
+--   NB. It will raise a 'Pipes.Attoparsec.ParsingError' on errors.
+produceHunks
+  :: (Surface a, Monad m)
+  => Pipes.Producer Text m r
+  -> Producer (Hunk a) m r
+
+produceHunks prodText
+  = do
+      ea <- Pipes.Attoparsec.parsed hunkParser prodText
+      case ea of
+        Right r -> pure r
+        Left (exc, _) -> Ex.throw exc
+  where
+    hunkParser
+      = parseSurface <* P.takeWhile P.isEndOfLine
+
 
 
 -- | A 'Consumer' that outputs a 'Hunk' to the given 'Handle'.

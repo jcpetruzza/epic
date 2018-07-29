@@ -6,3 +6,6 @@ packages:
 
 extra-deps:
 - exceptions-0.10.0  # For the instance MonadMask (ExceptT m)
+
+nix:
+  shell-file: ./shell.nix

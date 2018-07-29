@@ -41,6 +41,8 @@ library
     , lattices
     , mtl
     , pipes
+    , pipes-attoparsec
+    , pipes-text
     , text
     , temporary
     , unordered-containers
@@ -64,6 +66,7 @@ test-suite epic-core-test-lib
       Spec.LinesOfText
       Spec.Match
       Spec.Patch
+      Spec.Streaming
       Spec.Surface
   hs-source-dirs:
       test/lib
@@ -74,6 +77,7 @@ test-suite epic-core-test-lib
     , directory
     , epic-core
     , filepath
+    , pipes
     , tasty
     , tasty-hunit
     , tasty-quickcheck
