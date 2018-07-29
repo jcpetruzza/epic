@@ -1,6 +1,9 @@
 module Hunk
   ( Hunk(..)
   , mkHunk
+  , hunkFilename
+  , hunkSpan
+  , hunkBody
   )
 
 where
@@ -22,3 +25,15 @@ mkHunk fp loc ms a
       { hunkVars = ms
       , hunkLines = Located (Src fp loc) a
       }
+
+hunkFilename :: Hunk a -> FilePath
+hunkFilename
+  = srcFilename . location . hunkLines
+
+hunkSpan :: Hunk a -> Span
+hunkSpan
+  = src . location . hunkLines
+
+hunkBody :: Hunk a -> a
+hunkBody
+  = element . hunkLines

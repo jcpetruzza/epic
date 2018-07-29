@@ -207,17 +207,17 @@ instance Surface Assignments where
 
 
 instance Surface a => Surface (Hunk a) where
-  buildSurface Hunk{..}
-    = surfaceHunkLoc <> surfaceText <> buildSurface hunkVars
+  buildSurface h
+    = surfaceHunkLoc <> surfaceText <> buildSurface (hunkVars h)
     where
     surfaceHunkLoc
       = mconcat
-          [ chr '&', fromString $ srcFilename $ location $ hunkLines, chr '\n'
-          , chr '@', buildSurface $ src $ location $ hunkLines, chr '\n'
+          [ chr '&', fromString $ hunkFilename h, chr '\n'
+          , chr '@', buildSurface $ hunkSpan h, chr '\n'
           ]
 
     surfaceText
-      = buildSurface (element hunkLines)
+      = buildSurface (hunkBody h)
 
   parseSurface
     = do
