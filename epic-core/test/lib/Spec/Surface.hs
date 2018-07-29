@@ -16,11 +16,12 @@ import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 import Arbitrary ()
 
+import           Control.Monad.Writer.Strict ( execWriter, tell )
 import qualified Data.Attoparsec.Text   as P
 import           Data.Either            (isLeft)
 import qualified Data.Text              as Text
-import qualified Data.Text.Lazy         as LT
-import qualified Data.Text.Lazy.Builder as LBT
+import qualified Data.Text.Lazy         as LText
+import qualified Data.Text.Lazy.Builder as LTB
 
 tests :: TestTree
 tests = testGroup "Surface"
@@ -131,9 +132,16 @@ tests = testGroup "Surface"
   where
     txt = Text.pack
 
+toLazyTextSurface :: Surface a => a -> LText.Text
+toLazyTextSurface
+  = LTB.toLazyText
+      . execWriter
+      . runSurfaceBuilderWith (tell . LTB.fromText)
+      . buildSurface
+
 hasSurface :: Surface a => a -> String -> Assertion
 x `hasSurface` s
-  = LBT.toLazyText (buildSurface x) @?= LT.pack s
+  = toLazyTextSurface x @?= LText.pack s
 
 wontParse :: forall a . Surface a => String -> Assertion
 wontParse s
@@ -152,7 +160,7 @@ roundtrips'
 roundtrips' f =
   testProperty "Roundtrips" $ \b ->
     let a       = f b
-        encoded = LT.toStrict $ LBT.toLazyText (buildSurface a)
+        encoded = LText.toStrict $ toLazyTextSurface a
         decoded = P.parseOnly (parseSurface <* P.endOfInput) encoded
     in decoded === Right a
 

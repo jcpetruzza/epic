@@ -1,7 +1,13 @@
-{-# LANGUAGE GADTs           #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NoDeriveAnyClass           #-}
+{-# LANGUAGE RecordWildCards            #-}
 module Surface
   ( Surface (..)
+
+  , SurfaceBuilder
+  , runSurfaceBuilderWith
+  , emit
   )
 
 where
@@ -13,30 +19,57 @@ import qualified LinesOfText
 import           SrcLoc (Located(..), RowCol(..), Span(..), Src(..))
 
 import           Control.Monad (void, when)
+import           Control.Monad.Reader ( ask, ReaderT, runReaderT )
+import           Control.Monad.Trans ( lift )
 import           Data.Attoparsec.Text       ((<?>))
 import qualified Data.Attoparsec.Text       as P
 import qualified Data.Char                  as Char
 import           Data.Maybe (isJust)
-import           Data.Semigroup ((<>))
+import           Data.Semigroup ( Semigroup(..) )
+import           Data.String ( IsString(..) )
 import           Data.Text (Text)
 import qualified Data.Text                  as Text
 import qualified Data.Text.Lazy             as LText
 import qualified Data.Text.Lazy.Builder     as LTB
-import qualified Data.Text.Lazy.Builder.Int as LTB
+
+-- | A monad to build surface representation by appending
+--   fragments of 'Text' that are 'emit'ted
+newtype SurfaceBuilder m a
+  = SurfaceBuilder (ReaderT (Text -> m ()) m a)
+  deriving ( Functor, Applicative, Monad )
+
+-- | Add a new 'Text' fragment to the current surface representation
+emit :: Monad m => Text -> SurfaceBuilder m ()
+emit t = SurfaceBuilder $ do f <- ask; lift (f t)
+
+runSurfaceBuilderWith :: (Text -> m ()) -> SurfaceBuilder m a -> m a
+runSurfaceBuilderWith f (SurfaceBuilder b)
+  = runReaderT b f
+
+instance (Monad m, a ~ ()) => IsString (SurfaceBuilder m a) where
+  fromString = emit . Text.pack
+
+instance (Semigroup a, Applicative m) => Semigroup (SurfaceBuilder m a) where
+  l <> r
+    = (<>) <$> l <*> r
+
+instance (Semigroup a, Monoid a, Applicative m) => Monoid (SurfaceBuilder m a) where
+  mempty  = pure mempty
+  mappend = (<>)
 
 -- | Class of types with a surface representation
 class Surface a where
-  buildSurface :: a -> LTB.Builder
+  buildSurface :: Monad m => a -> SurfaceBuilder m ()
   parseSurface :: P.Parser a
 
 
 instance Surface Int where
-  buildSurface = LTB.decimal
+  buildSurface = fromString . show
   parseSurface = P.signed P.decimal
 
 instance a ~ Int => Surface (RowCol a) where
   buildSurface RowCol{..}
-    = buildSurface row <> LTB.singleton ',' <> buildSurface col
+    = buildSurface row <> chr ',' <> buildSurface col
 
   parseSurface
     = do
@@ -82,15 +115,15 @@ instance Surface LText.Text where
         where
           go acc t
             = let (l,t') = LText.break ((==) '\n') t
-                  acc' = acc <> toBuilder l
+                  acc' = acc <> emitLine l
               in case LText.uncons t' of
                    Nothing -> (acc', True)
                    Just (_, t'')
                      | LText.null t'' -> (acc', False)
                      | otherwise      -> go acc' t''
 
-      toBuilder l
-        = chr '>' <> LTB.fromLazyText l <> chr '\n'
+      emitLine l
+        = chr '>' <> emit (LText.toStrict l) <> chr '\n'
 
   parseSurface
     = LTB.toLazyText <$> do
@@ -104,7 +137,7 @@ instance Surface LText.Text where
             if not eot
               then do
                 line <- acceptLine
-                go $ acc <> chr '\n' <> LTB.fromText line
+                go $ acc <> LTB.singleton '\n' <> LTB.fromText line
               else do
                 lastLineHadNoEOL <- ('-' ==) <$> P.peekChar'
                 when lastLineHadNoEOL $
@@ -112,7 +145,7 @@ instance Surface LText.Text where
                 void (P.satisfy P.isEndOfLine <?> "\\n")
                 if lastLineHadNoEOL
                   then pure acc
-                  else pure $ acc <> chr '\n'
+                  else pure $ acc <> LTB.singleton '\n'
 
       isEOT = \case
         '>' -> pure False
@@ -122,7 +155,7 @@ instance Surface LText.Text where
 
 instance Surface Assignments.Var where
   buildSurface (Assignments.Var x)
-    = LTB.fromText x
+    = emit x
 
   parseSurface
     = do
@@ -179,7 +212,7 @@ instance Surface a => Surface (Hunk a) where
     where
     surfaceHunkLoc
       = mconcat
-          [ chr '&', LTB.fromString $ srcFilename $ location $ hunkLines, chr '\n'
+          [ chr '&', fromString $ srcFilename $ location $ hunkLines, chr '\n'
           , chr '@', buildSurface $ src $ location $ hunkLines, chr '\n'
           ]
 
@@ -197,8 +230,8 @@ instance Surface a => Surface (Hunk a) where
 
 
 -- {{ Utilities ----------------------------------------------------------------
-chr :: Char -> LTB.Builder
-chr = LTB.singleton
+chr :: Monad m => Char -> SurfaceBuilder m ()
+chr = emit . Text.singleton
 
 acceptLine :: P.Parser Text
 acceptLine

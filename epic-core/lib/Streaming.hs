@@ -6,13 +6,14 @@ module Streaming
 
     -- * Consumers
   , hOutputHunks
+  , emitHunks
   )
 
 where
 
 import           Hunk ( Hunk, mkHunk )
 import           LinesOfText
-import           Surface ( Surface(..) )
+import           Surface ( Surface(..), runSurfaceBuilderWith )
 import           SrcLoc ( Span(..), RowCol(..) )
 
 import qualified Control.Exception as Ex
@@ -70,15 +71,14 @@ produceHunks prodText
       = parseSurface <* P.takeWhile P.isEndOfLine
 
 
+-- | Emit the surface representation of each 'Hunk'.
+emitHunks :: Surface a => Pipes.Pipe (Hunk a) Text IO ()
+emitHunks
+  = for Pipes.cat $
+      runSurfaceBuilderWith Pipes.yield . buildSurface
+
 
 -- | A 'Consumer' that outputs a 'Hunk' to the given 'Handle'.
 hOutputHunks :: Surface a => Handle -> Pipes.Consumer (Hunk a) IO ()
 hOutputHunks h
-  = do first <- await
-       liftIO $ printHunk first
-       for cat $ \hunk -> liftIO $ do
-         LText.hPutStrLn h ""
-         printHunk hunk
-  where
-    printHunk
-      = LText.hPutStr h . LTB.toLazyText . buildSurface
+  = emitHunks >-> Pipes.Text.toHandle h
