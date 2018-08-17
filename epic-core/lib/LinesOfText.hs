@@ -7,6 +7,9 @@ module LinesOfText
   , toLazyText
 
     -- * Properties
+  , isEmpty
+  , numberOfLines
+  , numberOfColsAt
   , lastLineIncludesNewline
   , totalSpan
   , totalSpanFrom
@@ -99,6 +102,18 @@ lastLineIncludesNewline :: LinesOfText -> Bool
 lastLineIncludesNewline (LinesOfText ls)
   = (snd <$> Text.unsnoc (V.last ls)) == Just '\n'
 
+isEmpty :: LinesOfText -> Bool
+isEmpty
+  = (== mempty)
+
+numberOfLines :: LinesOfText -> Int
+numberOfLines (LinesOfText ls)
+  = V.length ls
+
+numberOfColsAt :: Int -> LinesOfText -> Int
+numberOfColsAt i (LinesOfText ls)
+  = maybe 0 Text.length (ls V.!? i)
+
 totalSpan :: LinesOfText -> Span
 totalSpan
   = totalSpanFrom (RowCol 0 0)
@@ -112,18 +127,18 @@ totalSpanFrom start lot@(LinesOfText ls)
       , spanEnd
           = if lastLineIncludesNewline lot
               then RowCol
-                     { row = row start + V.length ls
+                     { row = row start + numberOfLines lot
                      , col = 0
                      }
               else RowCol
-                     { row = row start + V.length ls - 1
+                     { row = row start + numberOfLines lot - 1
                      , col = if isSingleLine
                                then Text.length (V.last ls) + col start
                                else Text.length (V.last ls)
                      }
       }
   where
-    isSingleLine = V.length ls == 1
+    isSingleLine = numberOfLines lot == 1
 
 
 instance Matchable LinesOfText where
