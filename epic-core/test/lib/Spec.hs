@@ -1,3 +1,4 @@
+import qualified Spec.Hunk        as Hunk
 import qualified Spec.LinesOfText as LinesOfText
 import qualified Spec.Match       as Match
 import qualified Spec.Patch       as Patch
@@ -15,4 +16,5 @@ main = defaultMain $
   , LinesOfText.tests
   , Surface.tests
   , Streaming.tests
+  , Hunk.tests
   ]

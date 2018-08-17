@@ -4,13 +4,17 @@ module Assignments
   , Var(..)
   , Val(..)
 
-    -- * Construction
+  -- * Construction
   , empty
   , add
   , forget
   , fromList
 
-    -- * Queries
+  -- * Mapping
+  , mapVal
+  , traverseVal
+
+  -- * Queries
   , Assignments.lookup
   , toList
   )
@@ -56,6 +60,14 @@ fromList kvs
 toList :: Assignments -> [(Var, Val)]
 toList (Assignments hm)
   = [(x,v) | (x, vs) <- HM.toList hm, v <- ListNE.toList vs]
+
+mapVal :: (Val -> Val) -> Assignments -> Assignments
+mapVal f
+  = Assignments . fmap (fmap f). asMap
+
+traverseVal :: Applicative f => (Val -> f Val) -> Assignments -> f Assignments
+traverseVal f
+  = fmap Assignments . traverse (traverse f). asMap
 
 instance Semigroup Assignments where
   l <> r

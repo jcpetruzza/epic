@@ -8,6 +8,7 @@ module LinesOfText
   , toText
   , fromLazyText
   , toLazyText
+  , IsLinesOfText(..)
 
     -- * Properties
   , isEmpty
@@ -21,11 +22,12 @@ module LinesOfText
   , textFragments
   , fromFragments
 
-
     -- * Fragmenter
   , Fragmenter
   , runFragmenter
   , fragmentUpTo
+  , UpToLoc(..)
+  , OutOfRange(..)
   )
 
 where
@@ -279,3 +281,20 @@ fragmentUpTo upTo
 
     nextCol loc
       = loc{col = col loc + 1}
+
+
+class IsLinesOfText t where
+  toLinesOfText   :: t -> LinesOfText
+  fromLinesOfText :: LinesOfText -> t
+
+instance IsLinesOfText LinesOfText where
+  toLinesOfText   = id
+  fromLinesOfText = id
+
+instance IsLinesOfText Text where
+  toLinesOfText   = fromText
+  fromLinesOfText = toText
+
+instance IsLinesOfText LText.Text where
+  toLinesOfText   = fromLazyText
+  fromLinesOfText = toLazyText

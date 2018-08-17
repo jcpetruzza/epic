@@ -208,7 +208,7 @@ instance Surface Assignments where
 
 instance Surface a => Surface (Hunk a) where
   buildSurface h
-    = surfaceHunkLoc <> surfaceText <> buildSurface (hunkVars h)
+    = surfaceHunkLoc <> surfaceText <> buildSurface (hunkAssigns h)
     where
     surfaceHunkLoc
       = mconcat

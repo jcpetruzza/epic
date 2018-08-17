@@ -3,6 +3,7 @@
 {-# LANGUAGE RecordWildCards      #-}
 module Arbitrary
   ( PrintableText(..)
+  , validHunkSpans
   )
 
 where
@@ -10,8 +11,9 @@ where
 import Assignments
 import Hunk
 import LinesOfText
-import SrcLoc (Located(..), RowCol(..), Span(..), Src(..))
+import SrcLoc (addRows, Located(..), relocateTo, RowCol(..), Span(..), Src(..))
 
+import           Control.Monad ( guard )
 import qualified Data.Text as Text
 import qualified System.FilePath as FilePath
 import Test.Tasty.QuickCheck
@@ -68,19 +70,21 @@ instance CoArbitrary Span where
 -- {{ Src ---------------------------------------------------------------------
 instance Arbitrary a => Arbitrary (Src a) where
   arbitrary
-    = Src
-        <$> (FilePath.joinPath <$> listOf1 fileName)
-        <*> arbitrary
-    where
-      validPathChar
-        = elements $ ['a'..'z'] ++ ['0'..'9'] ++ ['-', '_', '.']
-
-      fileName
-        = listOf1 validPathChar
+    = Src <$> genFilePath <*> arbitrary
 
 instance CoArbitrary a => CoArbitrary (Src a) where
   coarbitrary (Src x y)
     = coarbitrary x . coarbitrary y
+
+genFilePath :: Gen FilePath
+genFilePath
+  = FilePath.joinPath <$> listOf1 fileName
+  where
+    validPathChar
+      = elements $ ['a'..'z'] ++ ['0'..'9'] ++ ['-', '_', '.']
+
+    fileName
+      = listOf1 validPathChar
 
 -- }} Src ---------------------------------------------------------------------
 
@@ -152,12 +156,77 @@ instance CoArbitrary LinesOfText where
 -- }} LinesOfText --------------------------------------------------------------
 
 -- {{ Hunk ---------------------------------------------------------------------
-instance Arbitrary a => Arbitrary (Hunk a) where
+instance (Arbitrary a, IsLinesOfText a) => Arbitrary (Hunk a) where
   arbitrary
-    = Hunk <$> arbitrary <*> arbitrary
+    = do
+        let asNonEmptyLot a
+              = do let lot = toLinesOfText a
+                   guard (not $ LinesOfText.isEmpty lot)
+                   pure (a, lot)
+
+        (a, lot) <- arbitrary `suchThatMap` asNonEmptyLot
+        offset <- nat
+        let
+          lastLine
+            = numberOfLines lot - 1
+            + fromEnum (lastLineIncludesNewline lot)
+
+          spanInside
+            = do
+                r0 <- choose (0, lastLine)
+                c0 <- choose (0, LinesOfText.numberOfColsAt r0 lot - 1)
+                r1 <- choose (r0, lastLine)
+                c1 <- if r1 == r0
+                        then choose (c0, LinesOfText.numberOfColsAt r1 lot - 1)
+                        else choose (0,  LinesOfText.numberOfColsAt r1 lot - 1)
+                pure $ offsetSpan $ Span (RowCol r0 c0) (RowCol r1 c1)
+
+          genVal
+            = oneof
+                [ ExplicitVal . getPrintableText <$> arbitrary
+                , ImplicitVal <$> spanInside
+                ]
+
+          offsetSpan
+            = addRows offset
+
+          Just lotSpan
+            = LinesOfText.totalSpan lot
+
+        src <- Src <$> genFilePath <*> pure (offsetSpan lotSpan)
+        ass <- Assignments.fromList <$> listOf ((,) <$> arbitrary <*> genVal)
+
+        pure $ Hunk ass (Located src a)
 
 instance CoArbitrary a => CoArbitrary (Hunk a) where
   coarbitrary (Hunk x y)
     = coarbitrary x . coarbitrary y
 
+validHunkSpans :: IsLinesOfText a => Hunk a -> Gen Span
+validHunkSpans h
+  = do
+      let getPos = choose (0, numPos - 1)
+      (a, b) <- (,) <$> getPos <*> getPos
+
+      let startPos = min a b
+          endPos   = max a b
+      pure $
+        relocateTo (spanStart $ hunkSpan h)$
+          Span (allPos !! startPos) (allPos !! endPos)
+
+  where
+    lot
+      = toLinesOfText (hunkBody h)
+
+    numPos
+      = sum
+          [ LinesOfText.numberOfColsAt r lot
+          | r <- [0..LinesOfText.numberOfLines lot - 1]
+          ]
+
+    allPos
+      = [ RowCol r c
+        | r <- [0..LinesOfText.numberOfLines lot - 1]
+        , c <- [0..LinesOfText.numberOfColsAt r lot - 1]
+        ]
 -- }} Hunk ---------------------------------------------------------------------
