@@ -4,7 +4,7 @@ module Spec.Patch
 
 where
 
-import SrcLoc
+import SrcLoc (Located(..), RowCol(..), Span(..), Src(Src))
 import Patch
 
 import Test.Tasty

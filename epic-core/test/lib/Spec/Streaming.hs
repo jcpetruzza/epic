@@ -6,9 +6,8 @@ where
 import LinesOfText ( LinesOfText )
 import Streaming
 
-import Arbitrary (PrintableText(..))
+import Arbitrary ()
 import Test.Tasty
-import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
 import           Pipes

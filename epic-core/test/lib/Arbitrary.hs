@@ -105,8 +105,8 @@ instance Arbitrary Assignments.Val where
 
 instance CoArbitrary Assignments.Val where
   coarbitrary = \case
-    ExplicitVal x -> variant 0 . coarbitrary (Text.unpack x)
-    ImplicitVal x -> variant 1 . coarbitrary x
+    ExplicitVal x -> variant (0 :: Int) . coarbitrary (Text.unpack x)
+    ImplicitVal x -> variant (1 :: Int) . coarbitrary x
 
 -- }} Assignments.Val ----------------------------------------------------------
 

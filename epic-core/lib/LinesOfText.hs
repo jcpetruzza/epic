@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module LinesOfText
   ( -- * Conversion
     LinesOfText (..)
@@ -34,7 +35,6 @@ import           Control.Monad              ( when )
 import           Control.Monad.Except       ( ExceptT, throwError, runExceptT )
 import           Control.Monad.State.Strict ( State, evalState, get, put )
 import qualified Data.HashMap.Strict        as HM
-import qualified Data.List                  as List
 import           Data.Maybe                 ( catMaybes )
 import           Data.Semigroup             ( Semigroup(..) )
 import           Data.String

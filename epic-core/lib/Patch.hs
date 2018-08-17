@@ -13,6 +13,8 @@ module Patch
 
 where
 
+import Prelude hiding (span)
+
 import           SrcLoc                     ( Located(..), RowCol(..), Span(..), Src(..) )
 
 import qualified Control.Exception          as Exc
@@ -27,7 +29,7 @@ import qualified Data.Text                  as Text
 import qualified Data.Text.IO               as Text
 import           GHC.Generics               ( Generic )
 
-import           System.IO                  ( Handle, IOMode(ReadMode), hClose, openFile )
+import           System.IO                  ( IOMode(ReadMode), hClose, openFile )
 import           System.IO.Error
 import qualified System.IO.Temp             as Temp
 import qualified System.Directory           as Dir
@@ -96,12 +98,12 @@ applyPatch = \case
     ioActionOnErr (fileNotFoundOrIOError f) $
       Dir.removeFile f
 
-  PatchFileCopy src dest -> do
-    destAlreadyExists <- liftIO $ Dir.doesFileExist dest
+  PatchFileCopy srcFile destFile -> do
+    destAlreadyExists <- liftIO $ Dir.doesFileExist destFile
     when destAlreadyExists $
-      patcherError (PatchApplyFileExists dest)
+      patcherError (PatchApplyFileExists destFile)
 
-    ioActionOnErr (fileNotFoundOrIOError src) $ Dir.copyFile src dest
+    ioActionOnErr (fileNotFoundOrIOError srcFile) $ Dir.copyFile srcFile destFile
 
 
   PatchReplaceHunk locHunk -> do
@@ -185,7 +187,7 @@ applyPatch = \case
 
         writeHunk
           = ioAction $
-              sequence $
+              sequence_ $
                 List.intersperse newline $
                   map (Text.hPutStr destHandle) hunkLines
 

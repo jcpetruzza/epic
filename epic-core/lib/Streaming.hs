@@ -14,15 +14,11 @@ where
 import           Hunk ( Hunk, mkHunk )
 import           LinesOfText
 import           Surface ( Surface(..), runSurfaceBuilderWith )
-import           SrcLoc ( Span(..), RowCol(..) )
 
 import qualified Control.Exception as Ex
 import qualified Data.Attoparsec.Text as P
 import           Data.Text ( Text )
-import qualified Data.Text as Text
 import qualified Data.Text.Lazy.IO as LText
-import qualified Data.Text.Lazy.Builder as LTB
-import           Data.Typeable ( Typeable )
 import           Pipes
 import qualified Pipes.Attoparsec
 import qualified Pipes.Text.IO as Pipes.Text

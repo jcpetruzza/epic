@@ -16,7 +16,7 @@ import           Assignments
 import           Hunk
 import           LinesOfText (LinesOfText)
 import qualified LinesOfText
-import           SrcLoc (Located(..), RowCol(..), Span(..), Src(..))
+import           SrcLoc (RowCol(..), Span(..))
 
 import           Control.Monad (void, when)
 import           Control.Monad.Reader ( ask, ReaderT, runReaderT )

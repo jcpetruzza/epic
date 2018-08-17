@@ -14,7 +14,6 @@ import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
 import qualified Data.Text.Lazy as LText
-import qualified Data.Vector as V
 import Data.Semigroup
 
 tests :: TestTree

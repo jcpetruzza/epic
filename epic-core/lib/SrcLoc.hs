@@ -10,7 +10,7 @@ module SrcLoc
 
 where
 
-import Algebra.Lattice (JoinSemiLattice(..), Lattice, MeetSemiLattice(..))
+import Algebra.Lattice (JoinSemiLattice(..), MeetSemiLattice(..))
 import Control.Monad (guard)
 import Data.Aeson (ToJSON, FromJSON)
 import Data.Maybe (isJust)
