@@ -34,8 +34,9 @@ fileHunks :: [FilePath] -> Pipes.Producer (Hunk LinesOfText) IO ()
 fileHunks fileNames
   = for (mapM_ yield fileNames) $ \fileName -> do
       ls <- liftIO $ LinesOfText.fromLazyText <$> LText.readFile fileName
-      let hunkSpan = LinesOfText.totalSpan ls
-      yield $ mkHunk fileName hunkSpan mempty ls
+      case LinesOfText.totalSpan ls of
+        Nothing       -> pure ()  -- empty file
+        Just hunkSpan -> yield $ mkHunk fileName hunkSpan mempty ls
 
 
 -- | A 'Producer' that parses the 'Surface' representation of 'Hunk's

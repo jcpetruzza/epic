@@ -6,13 +6,14 @@ where
 
 import LinesOfText
 import Match (UpToLoc(..), MatchFragment(..))
-import SrcLoc (RowCol(..), Span(..))
+import SrcLoc (relocateTo, RowCol(..), Span(..))
 
 import Arbitrary (PrintableText(..))
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
+import Data.Maybe (isNothing)
 import qualified Data.Text.Lazy as LText
 import Data.Semigroup
 
@@ -120,9 +121,19 @@ testMonoid = testGroup "Monoid instance"
 
 testSpans :: TestTree
 testSpans = testGroup "Span calculations"
-  [ testProperty "Span under concatenation" $ \l r s0 ->
-      let sl  = LinesOfText.totalSpanFrom s0 l
-          sr  = LinesOfText.totalSpanFrom (spanEnd sl) r
-          slr = Span {spanStart = spanStart sl, spanEnd = spanEnd sr}
-      in LinesOfText.totalSpanFrom s0 (l <> r) == slr
+  [ testProperty "Nothing iff empty" $ \lot ->
+      isNothing (LinesOfText.totalSpan lot) == LinesOfText.isEmpty lot
+
+  , testCase "Single line" $
+      LinesOfText.totalSpan "hello" @?= Just (Span (RowCol 0 0) (RowCol 0 4))
+
+  , testProperty "Span under concatenation" $ \l r ->
+      not (LinesOfText.isEmpty l || LinesOfText.isEmpty r) ==>
+        let Just sl  = LinesOfText.totalSpan l
+            Just sr  = LinesOfText.totalSpan r
+            slr = Span
+                    { spanStart = spanStart sl
+                    , spanEnd   = spanEnd $ relocateTo (nextLoc l) sr
+                    }
+        in LinesOfText.totalSpan (l <> r) == Just slr
   ]

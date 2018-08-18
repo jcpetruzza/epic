@@ -1,10 +1,13 @@
+{-# LANGUAGE RecordWildCards #-}
 module SrcLoc
   ( Src(..)
   , RowCol(..)
-  , Loc, RelLoc
+  , Loc
   , rightOf
   , Span(..)
   , overlap, overlapsWith, coveredBy
+  , addRows, addCols
+  , relativeTo, relocateTo
   , Located(..)
   )
 
@@ -14,7 +17,6 @@ import Algebra.Lattice (JoinSemiLattice(..), MeetSemiLattice(..))
 import Control.Monad (guard)
 import Data.Aeson (ToJSON, FromJSON)
 import Data.Maybe (isJust)
-import Data.Monoid hiding ((<>))
 import Data.Semigroup
 import GHC.Generics (Generic)
 
@@ -63,9 +65,6 @@ rightOf :: Loc -> Loc
 rightOf loc
   = loc{col = col loc + 1}
 
--- | A location, relative to some 'Loc'
-type RelLoc = RowCol (Sum Int)
-
 -- | A portion of a source file, spanning one or more lines and zero or more columns.
 data Span = Span
     { spanStart :: Loc
@@ -112,6 +111,50 @@ l `overlapsWith` r
 coveredBy :: Span -> Span -> Bool
 l `coveredBy` r
   = l /\ r == l
+
+relativeTo :: Loc -> Span -> Span
+relativeTo zero Span{..}
+  = Span
+      { spanStart
+          = RowCol
+              { row = row spanStart - row zero
+              , col = if row spanStart == row zero
+                        then col spanStart - col zero
+                        else col spanStart
+              }
+
+      , spanEnd
+          = RowCol
+              { row = row spanEnd - row zero
+              , col = if row spanEnd == row zero
+                        then col spanEnd - col zero
+                        else col spanEnd
+              }
+      }
+
+relocateTo :: Loc -> Span -> Span
+relocateTo newZero
+  = addRows (row newZero) . addCols (col newZero)
+
+
+addRows :: Int -> Span -> Span
+addRows r Span{..}
+  = Span
+      { spanStart = RowCol (r + row spanStart) (col spanStart)
+      , spanEnd   = RowCol (r + row spanEnd)   (col spanEnd)
+      }
+
+addCols :: Int -> Span -> Span
+addCols c Span{..}
+  = Span
+      { spanStart = RowCol (row spanStart) (c + col spanStart)
+      , spanEnd   = RowCol (row spanEnd)
+                           (if row spanEnd == row spanStart
+                              then c + col spanEnd
+                              else col spanEnd)
+      }
+
+
 
 data Located a
   = Located

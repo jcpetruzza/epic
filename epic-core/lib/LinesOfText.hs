@@ -1,4 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+
+{-# LANGUAGE NamedFieldPuns #-}
 module LinesOfText
   ( -- * Conversion
     LinesOfText (..)
@@ -13,7 +15,7 @@ module LinesOfText
   , numberOfColsAt
   , lastLineIncludesNewline
   , totalSpan
-  , totalSpanFrom
+  , nextLoc
 
     -- * Fragments
   , textFragments
@@ -29,9 +31,9 @@ module LinesOfText
 where
 
 import Match
-import SrcLoc (Loc, RowCol(..), Span(..))
+import SrcLoc (Loc, RowCol(..), rightOf, Span(..))
 
-import           Control.Monad              ( when )
+import           Control.Monad              ( guard, when )
 import           Control.Monad.Except       ( ExceptT, throwError, runExceptT )
 import           Control.Monad.State.Strict ( State, evalState, get, put )
 import qualified Data.HashMap.Strict        as HM
@@ -114,32 +116,32 @@ numberOfColsAt :: Int -> LinesOfText -> Int
 numberOfColsAt i (LinesOfText ls)
   = maybe 0 Text.length (ls V.!? i)
 
-totalSpan :: LinesOfText -> Span
-totalSpan
-  = totalSpanFrom (RowCol 0 0)
+-- | Return the total span of the given 'LinesOfText' if
+--   non-empty, or 'Nothing' otherwise.
+totalSpan :: LinesOfText -> Maybe Span
+totalSpan lot@(LinesOfText ls)
+  = do
+      guard (not $ isEmpty lot)
+      pure $ Span
+        { spanStart
+            = RowCol 0 0
+        , spanEnd
+            = RowCol
+                { row = numberOfLines lot - 1
+                , col = Text.length (V.last ls) - 1
+                }
+        }
 
--- | Return the 'Span' assuming the top-left character is at the given 'Loc'.
-totalSpanFrom :: Loc -> LinesOfText -> Span
-totalSpanFrom start lot@(LinesOfText ls)
-  = Span
-      { spanStart
-          = start
-      , spanEnd
-          = if lastLineIncludesNewline lot
-              then RowCol
-                     { row = row start + numberOfLines lot
-                     , col = 0
-                     }
-              else RowCol
-                     { row = row start + numberOfLines lot - 1
-                     , col = if isSingleLine
-                               then Text.length (V.last ls) + col start
-                               else Text.length (V.last ls)
-                     }
-      }
-  where
-    isSingleLine = numberOfLines lot == 1
-
+-- | Location of a cursor just after the 'LinesOfText' end.
+nextLoc :: LinesOfText -> Loc
+nextLoc lot
+  = case totalSpan lot of
+      Nothing ->
+        RowCol 0 0
+      Just Span{spanEnd} ->
+        if lastLineIncludesNewline lot
+          then RowCol (row spanEnd + 1) 0
+          else rightOf spanEnd
 
 instance Matchable LinesOfText where
   matched m lot
